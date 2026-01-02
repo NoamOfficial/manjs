@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Marvin JS Drag-Bond Sandbox</title>
+<script type="text/javascript" src="https://unpkg.com/marvinjs"></script>
+<style>
+  body { font-family: sans-serif; margin: 20px; }
+  #marvin-container { width: 900px; height: 600px; border: 1px solid #ccc; }
+  #periodic-table { margin-bottom: 10px; }
+  .element-btn {
+    padding: 5px 8px; margin: 2px;
+    border: 1px solid #999; cursor: pointer;
+    display: inline-block; width: 28px; text-align: center;
+    background: #eee; user-select: none;
+  }
+  .element-btn:hover { background: #ddd; }
+  #bond-btns { margin-bottom: 10px; }
+  .bond-btn { padding: 4px 6px; margin: 2px; border: 1px solid #999; cursor: pointer; background: #ddd; }
+  .bond-btn.active { background: #bbb; }
+</style>
+</head>
+<body>
+
+<h2>Marvin JS Drag-to-Bond Sandbox</h2>
+
+<div id="periodic-table"></div>
+
+<div id="bond-btns">
+  <span>Bond: </span>
+  <button class="bond-btn" data-bond="1">Single</button>
+  <button class="bond-btn" data-bond="2">Double</button>
+  <button class="bond-btn" data-bond="3">Triple</button>
+  <button class="bond-btn" data-bond="0">None</button>
+</div>
+
+<div id="marvin-container"></div>
+
+<script>
+const elements = [
+  "H","He","Li","Be","B","C","N","O","F","Ne",
+  "Na","Mg","Al","Si","P","S","Cl","Ar",
+  "K","Ca","Sc","Ti","V","Cr","Mn","Fe","Co","Ni","Cu","Zn",
+  "Ga","Ge","As","Se","Br","Kr","Rb","Sr","Y","Zr","Nb","Mo","Tc","Ru","Rh","Pd","Ag","Cd",
+  "In","Sn","Sb","Te","I","Xe","Cs","Ba","La","Ce","Pr","Nd","Pm","Sm","Eu","Gd","Tb","Dy","Ho","Er","Tm","Yb","Lu",
+  "Hf","Ta","W","Re","Os","Ir","Pt","Au","Hg","Tl","Pb","Bi","Po","At","Rn"
+];
+
+// Build periodic table UI
+const tableDiv = document.getElementById("periodic-table");
+elements.forEach(el => {
+  const btn = document.createElement("div");
+  btn.textContent = el;
+  btn.className = "element-btn";
+  btn.onclick = () => selectedElement = el;
+  tableDiv.appendChild(btn);
+});
+
+let selectedElement = "C";
+let selectedBond = 1;
+
+// Bond buttons
+document.querySelectorAll(".bond-btn").forEach(btn => {
+  btn.onclick = () => {
+    selectedBond = parseInt(btn.getAttribute("data-bond"));
+    document.querySelectorAll(".bond-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  };
+});
+
+// Initialize Marvin JS
+MarvinJSUtil.getEditor("#marvin-container", {
+  displaySettings: {
+    implicitHydrogen: "OFF",
+    showValenceErrors: false
+  },
+  structureSettings: {
+    autoBond: false,
+    allowDisconnectedAtoms: true
+  }
+}).then(editor => {
+  window.editor = editor;
+  const mol = editor.getMol();
+  let dragAtom = null;
+
+  const canvas = editor.getCanvas();
+  const scale = 1.0;
+
+  canvas.addMouseListener({
+    click: function(event) {
+      const {x, y} = canvas.screenToModel(event.offsetX, event.offsetY);
+      if (!dragAtom) {
+        // Place atom
+        const atom = mol.newAtom();
+        atom.setSymbol(selectedElement);
+        atom.setX(x);
+        atom.setY(y);
+        mol.addAtom(atom);
+        editor.repaint();
+      }
+    },
+    mouseDown: function(event) {
+      const {x, y} = canvas.screenToModel(event.offsetX, event.offsetY);
+      dragAtom = null;
+      mol.getAtomArray().forEach(a => {
+        const dx = a.getX() - x;
+        const dy = a.getY() - y;
+        if (Math.sqrt(dx*dx + dy*dy) < 0.4) dragAtom = a;
+      });
+    },
+    mouseUp: function(event) {
+      if (!dragAtom || selectedBond === 0) return;
+      const {x, y} = canvas.screenToModel(event.offsetX, event.offsetY);
+      let targetAtom = null;
+      mol.getAtomArray().forEach(a => {
+        const dx = a.getX() - x;
+        const dy = a.getY() - y;
+        if (Math.sqrt(dx*dx + dy*dy) < 0.4) targetAtom = a;
+      });
+      if (targetAtom && targetAtom !== dragAtom) {
+        const bond = mol.newBond();
+        bond.setAtom(0, dragAtom);
+        bond.setAtom(1, targetAtom);
+        bond.setOrder(selectedBond);
+        mol.addBond(bond);
+      }
+      dragAtom = null;
+      editor.repaint();
+    }
+  });
+
+  console.log("Marvin JS drag-to-bond sandbox ready!");
+});
+</script>
+
+</body>
+</html>
